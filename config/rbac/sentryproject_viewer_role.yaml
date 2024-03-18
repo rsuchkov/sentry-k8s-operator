@@ -1,0 +1,27 @@
+# permissions for end users to view sentryprojects.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: sentryproject-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: sentry-k8s-operator
+    app.kubernetes.io/part-of: sentry-k8s-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: sentryproject-viewer-role
+rules:
+- apiGroups:
+  - sentry.io.x42r
+  resources:
+  - sentryprojects
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - sentry.io.x42r
+  resources:
+  - sentryprojects/status
+  verbs:
+  - get

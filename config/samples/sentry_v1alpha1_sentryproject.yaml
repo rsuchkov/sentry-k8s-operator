@@ -1,0 +1,12 @@
+apiVersion: sentry.io.x42r/v1alpha1
+kind: SentryProject
+metadata:
+  labels:
+    app.kubernetes.io/name: sentryproject
+    app.kubernetes.io/instance: sentryproject-sample
+    app.kubernetes.io/part-of: sentry-k8s-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: sentry-k8s-operator
+  name: sentryproject-sample
+spec:
+  # TODO(user): Add fields here

@@ -1,0 +1,85 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: sentryprojects.sentry.io.x42r
+spec:
+  group: sentry.io.x42r
+  names:
+    kind: SentryProject
+    listKind: SentryProjectList
+    plural: sentryprojects
+    singular: sentryproject
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: SentryProject is the Schema for the sentryprojects API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: SentryProjectSpec defines the desired state of SentryProject
+            properties:
+              name:
+                description: Name is the human-readable name of the project in Sentry
+                type: string
+              organization:
+                description: Organization is the organization that owns the project
+                  in Sentry
+                maxLength: 50
+                minLength: 4
+                pattern: ^[a-z0-9-]+$
+                type: string
+              platform:
+                description: Platform is the platform of the project in Sentry
+                type: string
+              slug:
+                description: Slug is the unique identifier for the project in Sentry
+                maxLength: 50
+                minLength: 4
+                pattern: ^[a-z0-9-]+$
+                type: string
+              team:
+                description: Team is the team that owns the project in Sentry
+                maxLength: 50
+                minLength: 4
+                pattern: ^[a-z0-9-]+$
+                type: string
+            required:
+            - organization
+            - platform
+            - slug
+            - team
+            type: object
+          status:
+            description: SentryProjectStatus defines the observed state of SentryProject
+            properties:
+              message:
+                type: string
+              state:
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
