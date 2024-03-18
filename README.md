@@ -1,8 +1,8 @@
 # sentry-k8s-operator
-// TODO(user): Add simple overview of use/purpose
+The Kubernetes operator for Sentry projects automates the integration of Sentry error tracking with Kubernetes, managing projects directly from Kubernetes resources. It simplifies error monitoring in microservices, handling creation, updates, and deletions of Sentry projects based on Kubernetes configurations, improving efficiency and observability.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+// TBA after release
 
 ## Getting Started
 
