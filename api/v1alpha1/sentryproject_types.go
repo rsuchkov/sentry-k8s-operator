@@ -22,7 +22,7 @@ import (
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// +kubebuilder:validation:Enum=Created;Pending;Failed;Deleted;Conflict
+// +kubebuilder:validation:Enum=Created;Pending;Failed;Deleted;Conflict;NoTeam;Forbiden;BadRequest
 type SentryProjectCrStatus string
 
 const (
@@ -40,6 +40,14 @@ const (
 
 	// Conflict means the project creation has failed due to a conflict in Sentry
 	Conflict SentryProjectCrStatus = "Conflict"
+
+	// NoTeam means the project creation has failed due to a missing team in Sentry
+	NoTeam SentryProjectCrStatus = "NoTeam"
+
+	// Forbiden means the project creation has failed due to a forbiden action in Sentry
+	Forbiden SentryProjectCrStatus = "Forbiden"
+
+	BadRequest SentryProjectCrStatus = "BadRequest"
 )
 
 // SentryProjectSpec defines the desired state of SentryProject

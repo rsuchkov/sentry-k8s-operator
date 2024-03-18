@@ -58,24 +58,36 @@ func (r *SentryProjectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Check the state of the SentryProject
 	if sentryProject.Status.State == "" {
 		log.Info("SentryProject state is empty, setting to Pending")
-		sentryProject.Status.State = sentryv1alpha1.Pending
-		if err := r.Status().Update(ctx, &sentryProject); err != nil {
+		if err := r.UpdateStatus(ctx, &sentryProject, sentryv1alpha1.Pending, ""); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 	if sentryProject.Status.State == sentryv1alpha1.Pending || sentryProject.Status.State == sentryv1alpha1.Failed {
 		log.Info("SentryProject state is " + string(sentryProject.Status.State) + ", creating project")
-		if err := r.CreateSentryProject(ctx, &sentryProject.Spec); err != nil {
-			sentryProject.Status.State = sentryv1alpha1.Failed
-			sentryProject.Status.Message = err.Error()
-			if err := r.Status().Update(ctx, &sentryProject); err != nil {
+		_, resp, err := r.CreateSentryProject(ctx, &sentryProject.Spec)
+		if err != nil {
+			var state sentryv1alpha1.SentryProjectCrStatus
+			if resp != nil && (resp.StatusCode == 409) {
+				state = sentryv1alpha1.Conflict
+			} else if resp != nil && (resp.StatusCode == 404) {
+				state = sentryv1alpha1.NoTeam
+			} else if resp != nil && (resp.StatusCode == 403) {
+				state = sentryv1alpha1.Forbiden
+			} else if resp != nil && (resp.StatusCode == 400) {
+				state = sentryv1alpha1.BadRequest
+			} else {
+				state = sentryv1alpha1.Failed
+			}
+			if err := r.UpdateStatus(ctx, &sentryProject, state, err.Error()); err != nil {
 				return ctrl.Result{}, err
 			}
-			return ctrl.Result{}, err
 		}
-		sentryProject.Status.State = sentryv1alpha1.Created
-		sentryProject.Status.Message = ""
-		if err := r.Status().Update(ctx, &sentryProject); err != nil {
+		// TODO: set DSN
+		// sentryProject.Spec.DSN = ""
+		// if err := r.Update(ctx, &sentryProject); err != nil {
+		// 	return ctrl.Result{}, err
+		// }
+		if err := r.UpdateStatus(ctx, &sentryProject, sentryv1alpha1.Created, ""); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -88,8 +100,7 @@ func (r *SentryProjectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			if err := r.DeleteSentryProject(ctx, &sentryProject.Spec); err != nil {
 				return ctrl.Result{}, err
 			}
-			sentryProject.Status.State = sentryv1alpha1.Deleted
-			if err := r.Status().Update(ctx, &sentryProject); err != nil {
+			if err := r.UpdateStatus(ctx, &sentryProject, sentryv1alpha1.Deleted, ""); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -100,22 +111,29 @@ func (r *SentryProjectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
-func (r *SentryProjectReconciler) CreateSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) error {
+func (r *SentryProjectReconciler) CreateSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) (*sentry.Project, *sentry.Response, error) {
+	// TODO: Add policy for creation.
 	params := sentry.CreateProjectParams{Name: spec.Name, Slug: spec.Slug, Platform: spec.Platform}
-	_, _, err := r.Sentry.Projects.Create(ctx, spec.Organization, spec.Team, &params)
-	if err != nil {
-		return err
-	}
-	return nil
+	return r.Sentry.Projects.Create(ctx, spec.Organization, spec.Team, &params)
 }
 
 func (r *SentryProjectReconciler) DeleteSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) error {
+	// TODO: Add policy for deletion.
 	resp, err := r.Sentry.Projects.Delete(ctx, spec.Organization, spec.Slug)
 	if err != nil && resp != nil && resp.StatusCode == 404 {
 		// we don't care if the project is already deleted or doesn't exist
 		// release the finalizer
 		return nil
 	} else if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *SentryProjectReconciler) UpdateStatus(ctx context.Context, sentryProject *sentryv1alpha1.SentryProject, state sentryv1alpha1.SentryProjectCrStatus, message string) error {
+	sentryProject.Status.State = state
+	sentryProject.Status.Message = message
+	if err := r.Status().Update(ctx, sentryProject); err != nil {
 		return err
 	}
 	return nil

@@ -39,6 +39,9 @@ spec:
           spec:
             description: SentryProjectSpec defines the desired state of SentryProject
             properties:
+              dsn:
+                description: DSN is the Data Source Name for the project in Sentry
+                type: string
               name:
                 description: Name is the human-readable name of the project in Sentry
                 type: string
@@ -76,6 +79,12 @@ spec:
               message:
                 type: string
               state:
+                enum:
+                - Created
+                - Pending
+                - Failed
+                - Deleted
+                - Conflict
                 type: string
             type: object
         type: object
