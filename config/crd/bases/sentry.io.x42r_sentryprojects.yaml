@@ -39,8 +39,13 @@ spec:
           spec:
             description: SentryProjectSpec defines the desired state of SentryProject
             properties:
-              dsn:
-                description: DSN is the Data Source Name for the project in Sentry
+              conflictPolicy:
+                description: ConflictPolicy is the policy to apply when a conflict
+                  is detected
+                enum:
+                - Ignore
+                - Update
+                - Fail
                 type: string
               name:
                 description: Name is the human-readable name of the project in Sentry
@@ -85,6 +90,9 @@ spec:
                 - Failed
                 - Deleted
                 - Conflict
+                - NoTeam
+                - Forbiden
+                - BadRequest
                 type: string
             type: object
         type: object

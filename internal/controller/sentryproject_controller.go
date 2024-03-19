@@ -82,11 +82,6 @@ func (r *SentryProjectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				return ctrl.Result{}, err
 			}
 		}
-		// TODO: set DSN
-		// sentryProject.Spec.DSN = ""
-		// if err := r.Update(ctx, &sentryProject); err != nil {
-		// 	return ctrl.Result{}, err
-		// }
 		if err := r.UpdateStatus(ctx, &sentryProject, sentryv1alpha1.Created, ""); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -111,10 +106,33 @@ func (r *SentryProjectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
+func (r *SentryProjectReconciler) GetSentryProject(ctx context.Context, organization, slug string) (*sentry.Project, error) {
+	pr, _, err := r.Sentry.Projects.Get(ctx, organization, slug)
+	return pr, err
+}
+
 func (r *SentryProjectReconciler) CreateSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) (*sentry.Project, *sentry.Response, error) {
 	// TODO: Add policy for creation.
 	params := sentry.CreateProjectParams{Name: spec.Name, Slug: spec.Slug, Platform: spec.Platform}
-	return r.Sentry.Projects.Create(ctx, spec.Organization, spec.Team, &params)
+	pr, resp, err := r.Sentry.Projects.Create(ctx, spec.Organization, spec.Team, &params)
+	if err != nil {
+		if resp != nil && resp.StatusCode == 409 {
+			if spec.ConflictPolicy == sentryv1alpha1.Ignore {
+				return pr, resp, nil
+			} else if spec.ConflictPolicy == sentryv1alpha1.Update {
+
+				// TODO: Update project
+			}
+		} else if resp != nil && (resp.StatusCode == 404) {
+			// TODO: Add policy for missing team
+		} else if resp != nil && (resp.StatusCode == 403) {
+			// Failed to create project due to forbidden action
+		} else if resp != nil && (resp.StatusCode == 400) {
+			// Failed to create project due to bad request
+		}
+
+	}
+	return pr, resp, err
 }
 
 func (r *SentryProjectReconciler) DeleteSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) error {

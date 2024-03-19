@@ -50,6 +50,20 @@ const (
 	BadRequest SentryProjectCrStatus = "BadRequest"
 )
 
+// +kubebuilder:validation:Enum=Ignore;Update;Fail
+type ConflictPolicy string
+
+const (
+	// Ignore means the operator will ignore the conflict and continue
+	Ignore ConflictPolicy = "Ignore"
+
+	// Update means the operator will update the project in Sentry
+	Update ConflictPolicy = "Update"
+
+	// Fail means the operator will fail the project creation in Sentry
+	Fail ConflictPolicy = "Fail"
+)
+
 // SentryProjectSpec defines the desired state of SentryProject
 type SentryProjectSpec struct {
 	// Name is the human-readable name of the project in Sentry
@@ -80,9 +94,9 @@ type SentryProjectSpec struct {
 	// Organization is the organization that owns the project in Sentry
 	Organization string `json:"organization"`
 
-	// DSN is the Data Source Name for the project in Sentry
+	// ConflictPolicy is the policy to apply when a conflict is detected
 	// +optional
-	DSN string `json:"dsn,omitempty"`
+	ConflictPolicy ConflictPolicy `json:"conflictPolicy,omitempty"`
 }
 
 // SentryProjectStatus defines the observed state of SentryProject
