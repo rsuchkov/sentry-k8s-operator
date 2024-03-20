@@ -22,32 +22,21 @@ import (
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// +kubebuilder:validation:Enum=Created;Pending;Failed;Deleted;Conflict;NoTeam;Forbiden;BadRequest
-type SentryProjectCrStatus string
+// +kubebuilder:validation:Enum=Created;Pending;Failed;Deleted
+type SentryProjectCrState string
 
 const (
 	// Created means the project has been created in Sentry
-	Created SentryProjectCrStatus = "Created"
+	Created SentryProjectCrState = "Created"
 
 	// Pending means the project is pending creation in Sentry
-	Pending SentryProjectCrStatus = "Pending"
+	Pending SentryProjectCrState = "Pending"
 
 	// Failed means the project creation has failed in Sentry
-	Failed SentryProjectCrStatus = "Failed"
+	Failed SentryProjectCrState = "Failed"
 
 	// Deleted means the project has been deleted in Sentry
-	Deleted SentryProjectCrStatus = "Deleted"
-
-	// Conflict means the project creation has failed due to a conflict in Sentry
-	Conflict SentryProjectCrStatus = "Conflict"
-
-	// NoTeam means the project creation has failed due to a missing team in Sentry
-	NoTeam SentryProjectCrStatus = "NoTeam"
-
-	// Forbiden means the project creation has failed due to a forbiden action in Sentry
-	Forbiden SentryProjectCrStatus = "Forbiden"
-
-	BadRequest SentryProjectCrStatus = "BadRequest"
+	Deleted SentryProjectCrState = "Deleted"
 )
 
 // +kubebuilder:validation:Enum=Ignore;Update;Fail
@@ -101,8 +90,10 @@ type SentryProjectSpec struct {
 
 // SentryProjectStatus defines the observed state of SentryProject
 type SentryProjectStatus struct {
-	State   SentryProjectCrStatus `json:"state,omitempty"`
-	Message string                `json:"message,omitempty"`
+	State      SentryProjectCrState `json:"state,omitempty"`
+	Message    string               `json:"message,omitempty"`
+	Conditions []Condition          `json:"conditions,omitempty"`
+	Slug       string               `json:"slug,omitempty"`
 }
 
 //+kubebuilder:object:root=true

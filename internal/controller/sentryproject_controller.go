@@ -64,21 +64,9 @@ func (r *SentryProjectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	if sentryProject.Status.State == sentryv1alpha1.Pending || sentryProject.Status.State == sentryv1alpha1.Failed {
 		log.Info("SentryProject state is " + string(sentryProject.Status.State) + ", creating project")
-		_, resp, err := r.CreateSentryProject(ctx, &sentryProject.Spec)
+		err := r.CreateSentryProject(ctx, &sentryProject.Spec)
 		if err != nil {
-			var state sentryv1alpha1.SentryProjectCrStatus
-			if resp != nil && (resp.StatusCode == 409) {
-				state = sentryv1alpha1.Conflict
-			} else if resp != nil && (resp.StatusCode == 404) {
-				state = sentryv1alpha1.NoTeam
-			} else if resp != nil && (resp.StatusCode == 403) {
-				state = sentryv1alpha1.Forbiden
-			} else if resp != nil && (resp.StatusCode == 400) {
-				state = sentryv1alpha1.BadRequest
-			} else {
-				state = sentryv1alpha1.Failed
-			}
-			if err := r.UpdateStatus(ctx, &sentryProject, state, err.Error()); err != nil {
+			if err := r.UpdateStatus(ctx, &sentryProject, sentryv1alpha1.Failed, err.Error()); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -111,28 +99,31 @@ func (r *SentryProjectReconciler) GetSentryProject(ctx context.Context, organiza
 	return pr, err
 }
 
-func (r *SentryProjectReconciler) CreateSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) (*sentry.Project, *sentry.Response, error) {
-	// TODO: Add policy for creation.
+func (r *SentryProjectReconciler) CreateSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) error {
 	params := sentry.CreateProjectParams{Name: spec.Name, Slug: spec.Slug, Platform: spec.Platform}
-	pr, resp, err := r.Sentry.Projects.Create(ctx, spec.Organization, spec.Team, &params)
+	_, resp, err := r.Sentry.Projects.Create(ctx, spec.Organization, spec.Team, &params)
 	if err != nil {
 		if resp != nil && resp.StatusCode == 409 {
 			if spec.ConflictPolicy == sentryv1alpha1.Ignore {
-				return pr, resp, nil
+				return nil
 			} else if spec.ConflictPolicy == sentryv1alpha1.Update {
-
-				// TODO: Update project
+				if err := r.UpdateSentryProject(ctx, spec); err != nil {
+					return err
+				}
 			}
-		} else if resp != nil && (resp.StatusCode == 404) {
-			// TODO: Add policy for missing team
-		} else if resp != nil && (resp.StatusCode == 403) {
-			// Failed to create project due to forbidden action
-		} else if resp != nil && (resp.StatusCode == 400) {
-			// Failed to create project due to bad request
 		}
-
+		return err
 	}
-	return pr, resp, err
+	return nil
+}
+
+func (r *SentryProjectReconciler) UpdateSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) error {
+	params := sentry.UpdateProjectParams{Name: spec.Name, Slug: spec.Slug, Platform: spec.Platform}
+	_, _, err := r.Sentry.Projects.Update(ctx, spec.Organization, spec.Slug, &params)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *SentryProjectReconciler) DeleteSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) error {
@@ -148,7 +139,7 @@ func (r *SentryProjectReconciler) DeleteSentryProject(ctx context.Context, spec 
 	return nil
 }
 
-func (r *SentryProjectReconciler) UpdateStatus(ctx context.Context, sentryProject *sentryv1alpha1.SentryProject, state sentryv1alpha1.SentryProjectCrStatus, message string) error {
+func (r *SentryProjectReconciler) UpdateStatus(ctx context.Context, sentryProject *sentryv1alpha1.SentryProject, state sentryv1alpha1.SentryProjectCrState, message string) error {
 	sentryProject.Status.State = state
 	sentryProject.Status.Message = message
 	if err := r.Status().Update(ctx, sentryProject); err != nil {

@@ -81,7 +81,34 @@ spec:
           status:
             description: SentryProjectStatus defines the observed state of SentryProject
             properties:
+              conditions:
+                items:
+                  description: Condition describes the state of a resource at a certain
+                    point.
+                  properties:
+                    lastTransitionTime:
+                      description: LastTransitionTime is the last time the condition
+                        transitioned from one status to another
+                      type: string
+                    message:
+                      description: Message is a human-readable message indicating
+                        details about the condition
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown
+                      type: string
+                    type:
+                      description: Type of condition
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
               message:
+                type: string
+              slug:
                 type: string
               state:
                 enum:
@@ -89,10 +116,6 @@ spec:
                 - Pending
                 - Failed
                 - Deleted
-                - Conflict
-                - NoTeam
-                - Forbiden
-                - BadRequest
                 type: string
             type: object
         type: object
