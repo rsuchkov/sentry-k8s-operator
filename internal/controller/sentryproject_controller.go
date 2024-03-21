@@ -139,7 +139,6 @@ func (r *SentryProjectReconciler) UpdateSentryProject(ctx context.Context, proj 
 }
 
 func (r *SentryProjectReconciler) DeleteSentryProject(ctx context.Context, proj *sentryv1alpha1.SentryProject) error {
-	// TODO: Add policy for deletion.
 	spec := proj.Spec
 	resp, err := r.Sentry.Projects.Delete(ctx, spec.Organization, spec.Slug)
 	if err != nil && resp != nil && resp.StatusCode == 404 {
