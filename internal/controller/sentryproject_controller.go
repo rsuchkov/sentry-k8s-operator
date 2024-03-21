@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"github.com/jianyuan/go-sentry/v2/sentry"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -55,41 +56,49 @@ func (r *SentryProjectReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err := r.Get(ctx, req.NamespacedName, &sentryProject); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	// Check the state of the SentryProject
-	if sentryProject.Status.State == "" {
-		log.Info("SentryProject state is empty, setting to Pending")
-		if err := r.UpdateStatus(ctx, &sentryProject, sentryv1alpha1.Pending, ""); err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-	if sentryProject.Status.State == sentryv1alpha1.Pending || sentryProject.Status.State == sentryv1alpha1.Failed {
-		log.Info("SentryProject state is " + string(sentryProject.Status.State) + ", creating project")
-		err := r.CreateSentryProject(ctx, &sentryProject.Spec)
-		if err != nil {
-			if err := r.UpdateStatus(ctx, &sentryProject, sentryv1alpha1.Failed, err.Error()); err != nil {
+	// Checking the state of the SentryProject
+	if !sentryProject.IsProjectCreated() {
+		// if the project is not created, create the project
+		log.Info("Creating sentry project: " + sentryProject.Spec.Slug)
+		if err := r.CreateSentryProject(ctx, &sentryProject); err != nil {
+			msg := "Failed to create project: " + err.Error()
+			if err := r.UpdateReadyCondition(ctx, &sentryProject, sentryv1alpha1.False, msg); err != nil {
 				return ctrl.Result{}, err
 			}
+			log.Error(err, msg)
 		}
-		if err := r.UpdateStatus(ctx, &sentryProject, sentryv1alpha1.Created, ""); err != nil {
+		sentryProject.Status.Slug = sentryProject.Spec.Slug
+		if err := r.UpdateReadyCondition(ctx, &sentryProject, sentryv1alpha1.True, ""); err != nil {
 			return ctrl.Result{}, err
 		}
-	}
-	if sentryProject.ObjectMeta.DeletionTimestamp.IsZero() {
 		if err := r.UpdateFinalizer(ctx, &sentryProject); err != nil {
 			return ctrl.Result{}, err
 		}
-	} else {
-		if sentryProject.Status.State != sentryv1alpha1.Deleted {
-			if err := r.DeleteSentryProject(ctx, &sentryProject.Spec); err != nil {
-				return ctrl.Result{}, err
-			}
-			if err := r.UpdateStatus(ctx, &sentryProject, sentryv1alpha1.Deleted, ""); err != nil {
-				return ctrl.Result{}, err
-			}
+	} else if !sentryProject.ObjectMeta.DeletionTimestamp.IsZero() {
+		// if the project is being deleted, delete the project
+		log.Info("Deleting sentry project: " + sentryProject.Spec.Slug)
+		if err := r.DeleteSentryProject(ctx, &sentryProject); err != nil {
+			return ctrl.Result{}, err
 		}
 		if err := r.RemoveFinalizer(ctx, &sentryProject); err != nil {
 			return ctrl.Result{}, err
 		}
+	} else {
+		// if the project is created and the condition is true, update the project
+		log.Info("Updating sentry project: " + sentryProject.Spec.Slug)
+		if err := r.UpdateSentryProject(ctx, &sentryProject); err != nil {
+			msg := "Failed to update project: " + err.Error()
+			if err := r.UpdateReadyCondition(ctx, &sentryProject, sentryv1alpha1.False, msg); err != nil {
+				return ctrl.Result{}, err
+			}
+			log.Error(err, msg)
+		} else {
+			sentryProject.Status.Slug = sentryProject.Spec.Slug
+			if err := r.UpdateReadyCondition(ctx, &sentryProject, sentryv1alpha1.True, ""); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
 	}
 	return ctrl.Result{}, nil
 }
@@ -99,7 +108,8 @@ func (r *SentryProjectReconciler) GetSentryProject(ctx context.Context, organiza
 	return pr, err
 }
 
-func (r *SentryProjectReconciler) CreateSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) error {
+func (r *SentryProjectReconciler) CreateSentryProject(ctx context.Context, proj *sentryv1alpha1.SentryProject) error {
+	spec := proj.Spec
 	params := sentry.CreateProjectParams{Name: spec.Name, Slug: spec.Slug, Platform: spec.Platform}
 	_, resp, err := r.Sentry.Projects.Create(ctx, spec.Organization, spec.Team, &params)
 	if err != nil {
@@ -107,7 +117,7 @@ func (r *SentryProjectReconciler) CreateSentryProject(ctx context.Context, spec 
 			if spec.ConflictPolicy == sentryv1alpha1.Ignore {
 				return nil
 			} else if spec.ConflictPolicy == sentryv1alpha1.Update {
-				if err := r.UpdateSentryProject(ctx, spec); err != nil {
+				if err := r.UpdateSentryProject(ctx, proj); err != nil {
 					return err
 				}
 			}
@@ -117,17 +127,20 @@ func (r *SentryProjectReconciler) CreateSentryProject(ctx context.Context, spec 
 	return nil
 }
 
-func (r *SentryProjectReconciler) UpdateSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) error {
+func (r *SentryProjectReconciler) UpdateSentryProject(ctx context.Context, proj *sentryv1alpha1.SentryProject) error {
+	// TODO: Handle the case with Organization change
+	spec := proj.Spec
 	params := sentry.UpdateProjectParams{Name: spec.Name, Slug: spec.Slug, Platform: spec.Platform}
-	_, _, err := r.Sentry.Projects.Update(ctx, spec.Organization, spec.Slug, &params)
+	_, _, err := r.Sentry.Projects.Update(ctx, spec.Organization, proj.Status.Slug, &params)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *SentryProjectReconciler) DeleteSentryProject(ctx context.Context, spec *sentryv1alpha1.SentryProjectSpec) error {
+func (r *SentryProjectReconciler) DeleteSentryProject(ctx context.Context, proj *sentryv1alpha1.SentryProject) error {
 	// TODO: Add policy for deletion.
+	spec := proj.Spec
 	resp, err := r.Sentry.Projects.Delete(ctx, spec.Organization, spec.Slug)
 	if err != nil && resp != nil && resp.StatusCode == 404 {
 		// we don't care if the project is already deleted or doesn't exist
@@ -139,9 +152,24 @@ func (r *SentryProjectReconciler) DeleteSentryProject(ctx context.Context, spec 
 	return nil
 }
 
-func (r *SentryProjectReconciler) UpdateStatus(ctx context.Context, sentryProject *sentryv1alpha1.SentryProject, state sentryv1alpha1.SentryProjectCrState, message string) error {
-	sentryProject.Status.State = state
-	sentryProject.Status.Message = message
+func (r *SentryProjectReconciler) UpdateReadyCondition(ctx context.Context, sentryProject *sentryv1alpha1.SentryProject, status sentryv1alpha1.ConditionStatus, message string) error {
+	condition := sentryv1alpha1.Condition{Type: sentryv1alpha1.Ready, Status: status, Message: message}
+	return r.UpdateCondition(ctx, sentryProject, condition)
+}
+
+func (r *SentryProjectReconciler) UpdateCondition(ctx context.Context, sentryProject *sentryv1alpha1.SentryProject, condition sentryv1alpha1.Condition) error {
+	condition.LastTransitionTime = time.Now().Format(time.RFC3339)
+	// Find if the condition already exists
+	exists := false
+	for i, c := range sentryProject.Status.Conditions {
+		if c.Type == condition.Type {
+			sentryProject.Status.Conditions[i] = condition
+			exists = true
+		}
+	}
+	if !exists {
+		sentryProject.Status.Conditions = append(sentryProject.Status.Conditions, condition)
+	}
 	if err := r.Status().Update(ctx, sentryProject); err != nil {
 		return err
 	}

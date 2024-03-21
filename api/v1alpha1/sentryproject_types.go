@@ -22,23 +22,6 @@ import (
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// +kubebuilder:validation:Enum=Created;Pending;Failed;Deleted
-type SentryProjectCrState string
-
-const (
-	// Created means the project has been created in Sentry
-	Created SentryProjectCrState = "Created"
-
-	// Pending means the project is pending creation in Sentry
-	Pending SentryProjectCrState = "Pending"
-
-	// Failed means the project creation has failed in Sentry
-	Failed SentryProjectCrState = "Failed"
-
-	// Deleted means the project has been deleted in Sentry
-	Deleted SentryProjectCrState = "Deleted"
-)
-
 // +kubebuilder:validation:Enum=Ignore;Update;Fail
 type ConflictPolicy string
 
@@ -90,10 +73,8 @@ type SentryProjectSpec struct {
 
 // SentryProjectStatus defines the observed state of SentryProject
 type SentryProjectStatus struct {
-	State      SentryProjectCrState `json:"state,omitempty"`
-	Message    string               `json:"message,omitempty"`
-	Conditions []Condition          `json:"conditions,omitempty"`
-	Slug       string               `json:"slug,omitempty"`
+	Conditions []Condition `json:"conditions,omitempty"`
+	Slug       string      `json:"slug,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -119,4 +100,18 @@ type SentryProjectList struct {
 
 func init() {
 	SchemeBuilder.Register(&SentryProject{}, &SentryProjectList{})
+}
+
+func (sp *SentryProject) GetReadyCondition() *Condition {
+	for _, c := range sp.Status.Conditions {
+		if c.Type == Ready {
+			return &c
+		}
+	}
+	return nil
+}
+
+func (sp *SentryProject) IsProjectCreated() bool {
+	cond := sp.GetReadyCondition()
+	return cond != nil && sp.Status.Slug != ""
 }

@@ -19,10 +19,10 @@ const (
 // Condition describes the state of a resource at a certain point.
 type Condition struct {
 	// Type of condition
-	Type string `json:"type"`
+	Type ConditionType `json:"type"`
 
 	// Status of the condition, one of True, False, Unknown
-	Status string `json:"status"`
+	Status ConditionStatus `json:"status"`
 
 	//Message is a human-readable message indicating details about the condition
 	Message string `json:"message,omitempty"`
